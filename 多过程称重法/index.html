@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浮力实验可视化</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>浮力实验可视化</h1>
+
+    <div class="container">
+        <div class="visualization">
+            <h2>物理情境</h2>
+            <!-- {{ edit_1_start }} -->
+            <!-- Increased height from 500 to 600 -->
+            <canvas id="physicsCanvas" width="400" height="600"></canvas>
+            <!-- {{ edit_1_end }} -->
+        </div>
+
+        <div class="chart">
+            <h2>弹簧测力计读数 (F) vs 下降高度 (h)</h2>
+            <canvas id="chartCanvas" width="500" height="500"></canvas>
+            <div id="chartInfo">当前读数: F = <span id="currentF">?</span> N, h = <span id="currentH">?</span> cm</div>
+             <div id="clickInfo">点击坐标: F = <span id="clickF">?</span> N, h = <span id="clickH">?</span> cm</div>
+        </div>
+
+        <div class="controls">
+            <h2>参数调节</h2>
+            <div>
+                <label for="heightSlider">物体下降高度 h (cm): <span id="heightValue">10</span></label>
+                <input type="range" id="heightSlider" min="0" max="30" value="10" step="0.1">
+                <input type="number" id="heightInput" min="0" max="30" value="10" step="0.1">
+            </div>
+            <div>
+                <label for="gravitySlider">物体所受重力 G (N): <span id="gravityValue">20.0</span></label>
+                <input type="range" id="gravitySlider" min="1" max="50" value="20" step="0.1">
+                <input type="number" id="gravityInput" min="1" max="50" value="20" step="0.1">
+            </div>
+             <div>
+                <label for="densitySlider">液体密度 ρ (kg/m³): <span id="densityValue">1000</span></label>
+                <input type="range" id="densitySlider" min="500" max="2000" value="1000" step="10">
+                <input type="number" id="densityInput" min="500" max="2000" value="1000" step="10">
+            </div>
+            <div>
+                <label for="volumeSlider">初始液体体积 V (L): <span id="volumeValue">1.8</span> L</label>
+                <!-- {{ edit_1_start }} -->
+                <input type="range" id="volumeSlider" min="1" max="10" step="0.1" value="1.8">
+                <input type="number" id="volumeInput" min="1" max="10" step="0.1" value="1.8">
+                <!-- {{ edit_1_end }} -->
+            </div>
+             <p><i>注意: 物体高度固定为 10cm。</i></p>
+             <p><i>重力加速度 g = 10 N/kg。</i></p>
+             <!-- Added Undo Button -->
+             <button id="undoButton" style="padding: 8px 15px; font-size: 1em; margin-top: 10px; cursor: pointer;">撤销上个标记点</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
