@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浮力与动态液面可视化</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .main-container {
+            display: flex;
+            flex-direction: row;
+            gap: 30px;
+            width: 100%;
+            max-width: 1600px;
+        }
+        .visualization-area {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .scenes-comparison {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            justify-content: space-around;
+        }
+        .scene {
+            border: 2px solid #ccc;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 8px;
+            width: 45%;
+            min-height: 400px; /* Min height for visualization */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative; /* For positioning elements within */
+        }
+        .scene h2 {
+            margin-top: 0;
+            font-size: 1.8em;
+            color: #333;
+        }
+        .canvas-container {
+            width: 80%;
+            height: 300px; /* Fixed height for canvas */
+            border: 1px solid #000;
+            margin-top: 10px;
+            position: relative; /* For object and liquid */
+            background-color: #e0f7fa; /* Light blue for water default */
+            overflow: hidden; /* Prevent annotations from spilling out if mispositioned */
+        }
+        .annotation-line {
+            position: absolute;
+            background-color: rgba(0,0,0,0.7);
+            font-size: 0.8em; /* Smaller font for annotations */
+            color: black;
+        }
+        .annotation-text {
+            position: absolute;
+            font-size: 0.9em; /* Slightly larger than line text for readability */
+            padding: 2px 4px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+        /* Specific styles for different annotations if needed */
+        .liquid-level-line {
+            left: 0;
+            width: 100%;
+            height: 1px;
+            border-top: 1px dashed #0000CD; /* MediumBlue dashed */
+        }
+        .liquid-level-text {
+            left: 5px; /* Position text slightly from the left */
+            color: #0000CD;
+        }
+
+        .block-bottom-line { /* Line from container bottom to block bottom */
+            left: 20%; /* Position it to the side of the block */
+            width: 1px;
+            border-left: 1px dashed #A52A2A; /* Brown dashed */
+        }
+        .block-bottom-text {
+            left: 22%;
+            color: #A52A2A;
+        }
+
+        .immersion-depth-line { /* Vertical line alongside submerged part */
+            right: 20%; /* Other side of the block */
+            width: 1px;
+            border-left: 1px solid #228B22; /* ForestGreen solid */
+        }
+        .immersion-depth-text {
+            right: 22%;
+            color: #228B22;
+            writing-mode: vertical-rl; /* Can make it vertical if desired */
+            text-orientation: mixed;
+        }
+
+        .liquid {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #0077be;
+            transition: height 0.3s ease-in-out;
+        }
+        .object-block {
+            position: absolute;
+            left: 50%; /* Centered, will adjust with JS */
+            transform: translateX(-50%);
+            background-color: #f0a040; /* Orange for block */
+            border: 1px solid #805020;
+            transition: bottom 0.3s ease-in-out, height 0.3s ease-in-out, width 0.3s ease-in-out;
+        }
+        .depth-display {
+            margin-top: 15px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .status-and-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 350px; /* Fixed width for control panel */
+        }
+        .control-panel, .status-panel {
+            border: 2px solid #ccc;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+        }
+        .control-panel h2, .status-panel h2 {
+            margin-top: 0;
+            font-size: 1.8em;
+            color: #333;
+        }
+        .control-group {
+            margin-bottom: 10px; /* Reduced margin */
+            display: flex; /* Arrange label and controls in a row */
+            align-items: center; /* Vertically align label and controls */
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 1.1em;
+            color: #555;
+            flex-basis: 200px; /* Fixed width for label */
+            flex-shrink: 0; /* Prevent label from shrinking */
+            margin-right: 10px; /* Space between label and controls */
+            margin-bottom: 0; /* Reset bottom margin as it's now inline */
+        }
+        .control-group input[type="range"] { /* Slider styles */
+            width: 100%;
+            margin-top: 5px;
+            flex-grow: 1; /* Slider takes available space */
+            margin-right: 10px; /* Space between slider and number input */
+        }
+        .control-group .input-sync-group { /* To group number and range */
+            display: flex;
+            flex-direction: row;
+            align-items: center; /* Vertically align slider and input */
+            margin-top: 5px;
+        }
+        .control-group .slider-input-pair input[type="number"] {
+            width: 80px; /* Fixed width for the number input next to slider */
+            flex-shrink: 0; /* Prevent it from shrinking */
+            margin-top: 0; /* Reset margin if any was inherited */
+            font-size: 1em; /* Slightly smaller font for compact layout */
+        }
+        .control-group .value-display { /* Optional: To show slider value if hiding number input */
+            font-size: 0.9em;
+            color: #666;
+            text-align: right;
+        }
+        .control-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+            transform: scale(1.5); /* Larger checkbox */
+        }
+        .control-panel button {
+            padding: 12px 20px;
+            font-size: 1.2em;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .control-panel button:hover {
+            background-color: #0056b3;
+        }
+        .status-panel p {
+            font-size: 1.1em;
+            margin: 8px 0;
+            color: #444;
+        }
+        .status-panel.below-visualization {
+            width: auto; /* Allow it to span more width if needed */
+            margin-top: 20px;
+            padding: 20px;
+            border: 2px solid #ccc;
+            background-color: #fff;
+            border-radius: 8px;
+            /* New styles for horizontal layout */
+            display: flex;
+            flex-direction: row;
+            justify-content: space-around; /* Distributes items evenly */
+            align-items: center; /* Vertically aligns items in the center */
+            width: 95%; /* Span most of the page width */
+            max-width: 1200px; /* Cap width on very large screens */
+            margin-left: auto; /* Center the panel */
+            margin-right: auto; /* Center the panel */
+        }
+        .status-panel.below-visualization h2 {
+            font-size: 1.6em; /* Adjusted for horizontal layout */
+            margin: 0 20px 0 0; /* Right margin for spacing from first data point */
+            flex-shrink: 0; /* Prevent title from shrinking too much */
+            flex-grow: 0; /* Title does not grow */
+        }
+        .status-panel.below-visualization p {
+            font-size: 1.4em; /* Adjusted for horizontal layout */
+            margin: 0 10px; /* Horizontal spacing between data points */
+            white-space: nowrap; /* Prevent text within a P tag from wrapping */
+            flex-grow: 1; /* Allow p tags to grow and share space */
+            flex-basis: 0; /* Start from a basis of 0 for even distribution */
+            text-align: left; /* Align text to the left within its flex item */
+            min-width: 180px; /* Give a minimum width to prevent too much squishing & jumping */
+        }
+        .comparison-line-container {
+            width: 100%; /* Span across both scenes for comparison lines */
+            height: 20px; /* Space for lines */
+            position: relative;
+            margin-top: 5px;
+        }
+        .comparison-line {
+            position: absolute;
+            height: 2px;
+            background-color: red;
+            opacity: 0.7;
+        }
+        .depth-difference-display {
+            padding: 10px;
+            background-color: yellow;
+            border: 1px solid #f0c000;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="visualization-area">
+            <div class="scenes-comparison">
+                <div class="scene" id="recorded-scene">
+                    <h2>记录状态</h2>
+                    <div class="canvas-container" id="recorded-canvas-container">
+                        <div class="liquid" id="recorded-liquid"></div>
+                        <div class="object-block" id="recorded-object"></div>
+                    </div>
+                    <div class="depth-display" id="recorded-immersion-depth">浸入深度: 0 cm</div>
+                    <div class="depth-display" id="recorded-liquid-level">液面高度: 0 cm</div>
+                </div>
+                <div class="scene" id="current-scene">
+                    <h2>当前状态</h2>
+                    <div class="canvas-container" id="current-canvas-container">
+                        <div class="liquid" id="current-liquid"></div>
+                        <div class="object-block" id="current-object"></div>
+                    </div>
+                    <div class="depth-display" id="current-immersion-depth">浸入深度: 0 cm</div>
+                    <div class="depth-display" id="current-liquid-level">液面高度: 0 cm</div>
+                </div>
+            </div>
+            <div class="comparison-line-container" id="object-position-comparison">
+                <!-- Lines will be added by JS -->
+            </div>
+            <div class="comparison-line-container" id="liquid-level-comparison">
+                <!-- Lines will be added by JS -->
+            </div>
+            <div class="depth-difference-display" id="immersion-depth-difference">
+                浸入深度差值: 0 cm
+            </div>
+            <!-- STATUS PANEL TO BE MOVED HERE -->
+        </div>
+
+        <div class="status-panel below-visualization" id="moved-status-panel"> 
+            <h2>物块当前状态</h2>
+            <p id="status-block-position">物块位置 (底部): 0 cm</p>
+            <p id="status-block-immersion">物块浸入液体深度: 0 cm</p>
+            <p id="status-liquid-height">液面高度: 0 cm</p>
+        </div>
+
+        <div class="status-and-controls">
+            <div class="control-panel">
+                <h2>控制台</h2>
+                <div class="control-group">
+                    <label for="container-area">容器底面积 (cm²):</label>
+                    <div class="slider-input-pair">
+                        <input type="range" id="container-area-slider" value="200" min="10" max="500" step="10">
+                        <input type="number" id="container-area" value="200" min="10" max="500" step="10">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="initial-liquid-height">初始液面高度 (cm):</label>
+                    <div class="slider-input-pair">
+                        <input type="range" id="initial-liquid-height-slider" value="10" min="0" max="30" step="1">
+                        <input type="number" id="initial-liquid-height" value="10" min="0" max="30" step="1">
+                    </div>
+                </div>
+                <hr>
+                <div class="control-group">
+                    <label for="block-area">物块底面积 (cm²):</label>
+                    <div class="slider-input-pair">
+                        <input type="range" id="block-area-slider" value="50" min="5" max="200" step="5">
+                        <input type="number" id="block-area" value="50" min="5" max="200" step="5">
+                    </div>
+                </div>
+                 <div class="control-group">
+                    <label for="block-height">物块高度 (cm):</label>
+                    <div class="slider-input-pair">
+                        <input type="range" id="block-height-slider" value="10" min="1" max="30" step="1">
+                        <input type="number" id="block-height" value="10" min="1" max="30" step="1">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="block-density">物块密度 (g/cm³):</label>
+                    <div class="slider-input-pair">
+                        <input type="range" id="block-density-slider" value="0.7" min="0.1" max="3.0" step="0.1">
+                        <input type="number" id="block-density" value="0.7" min="0.1" max="3.0" step="0.1">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="block-position">物块位置 (底部距容器底, cm):</label>
+                    <div class="slider-input-pair">
+                        <input type="range" id="block-position-slider" value="5" min="0" max="30" step="0.1">
+                        <input type="number" id="block-position" value="5" min="0" max="30" step="0.1">
+                    </div>
+                </div>
+                <hr>
+                 <div class="control-group">
+                    <label for="liquid-density">液体密度 (g/cm³):</label>
+                    <div class="slider-input-pair">
+                        <input type="range" id="liquid-density-slider" value="1.0" min="0.5" max="2.0" step="0.05">
+                        <input type="number" id="liquid-density" value="1.0" min="0.5" max="2.0" step="0.05">
+                    </div>
+                </div>
+                <hr>
+                <button id="record-button">记录当前状态</button>
+                <div class="control-group" style="margin-top: 15px;">
+                    <input type="checkbox" id="auto-balance">
+                    <label for="auto-balance" style="display: inline;">自动平衡状态</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript logic will go here in the next steps
+        const PIXELS_PER_CM = 10; // 1 cm in simulation = 10 pixels on screen
+        const GRAVITY = 9.8; // m/s^2 - not used yet, but good to have
+        const MAX_SIM_HEIGHT_CM = 30; // Corresponds to 300px canvas height with 10 PIXELS_PER_CM
+
+        // DOM Element References
+        const current = {
+            liquid: document.getElementById('current-liquid'),
+            object: document.getElementById('current-object'),
+            canvasContainer: document.getElementById('current-canvas-container'),
+            immersionDepthDisplay: document.getElementById('current-immersion-depth'),
+            liquidLevelDisplay: document.getElementById('current-liquid-level'),
+        };
+
+        const recorded = {
+            liquid: document.getElementById('recorded-liquid'),
+            object: document.getElementById('recorded-object'),
+            canvasContainer: document.getElementById('recorded-canvas-container'),
+            immersionDepthDisplay: document.getElementById('recorded-immersion-depth'),
+            liquidLevelDisplay: document.getElementById('recorded-liquid-level'),
+        };
+
+        const inputs = {
+            containerArea: document.getElementById('container-area'),
+            initialLiquidHeight: document.getElementById('initial-liquid-height'),
+            blockArea: document.getElementById('block-area'),
+            blockHeight: document.getElementById('block-height'),
+            blockDensity: document.getElementById('block-density'),
+            blockPosition: document.getElementById('block-position'), // Position of block's bottom from container bottom
+            liquidDensity: document.getElementById('liquid-density'),
+            recordButton: document.getElementById('record-button'),
+            autoBalanceCheckbox: document.getElementById('auto-balance'),
+        };
+
+        // Add slider references to the inputs object
+        inputs.containerAreaSlider = document.getElementById('container-area-slider');
+        inputs.initialLiquidHeightSlider = document.getElementById('initial-liquid-height-slider');
+        inputs.blockAreaSlider = document.getElementById('block-area-slider');
+        inputs.blockHeightSlider = document.getElementById('block-height-slider');
+        inputs.blockDensitySlider = document.getElementById('block-density-slider');
+        inputs.blockPositionSlider = document.getElementById('block-position-slider');
+        inputs.liquidDensitySlider = document.getElementById('liquid-density-slider');
+
+        const statusDisplays = {
+            blockPosition: document.getElementById('status-block-position'),
+            blockImmersion: document.getElementById('status-block-immersion'),
+            liquidHeight: document.getElementById('status-liquid-height'),
+            immersionDepthDifference: document.getElementById('immersion-depth-difference'),
+        };
+        
+        const objectPositionComparisonContainer = document.getElementById('object-position-comparison');
+        const liquidLevelComparisonContainer = document.getElementById('liquid-level-comparison');
+
+        // State object to hold all simulation parameters
+        let simState = {
+            containerAreaCm2: 0,
+            initialLiquidHeightCm: 0, // This is the height of liquid *without* the block
+            actualLiquidHeightCm: 0, // This will be calculated considering block displacement
+            
+            blockAreaCm2: 0,
+            blockHeightCm: 0,
+            blockDensityGCm3: 0,
+            blockPositionBottomCm: 0, // Position of block's bottom from container's bottom
+            
+            liquidDensityGCm3: 0,
+            
+            // Calculated values for current state
+            blockVolumeCm3: 0,
+            blockMassG: 0,
+            blockWeightN: 0,       // Added
+            buoyantForceN: 0,      // Added
+            immersionDepthCm: 0,
+            isFloating: false, 
+            isFullySubmerged: false,
+
+            // Recorded state (will be populated by the record button)
+            recordedState: null
+        };
+
+        function getInputs() {
+            // Read all raw input values and provide defaults to prevent NaN/errors
+            simState.containerAreaCm2 = parseFloat(inputs.containerArea.value) || 200; 
+            simState.initialLiquidHeightCm = parseFloat(inputs.initialLiquidHeight.value) || 0;
+            simState.blockAreaCm2 = parseFloat(inputs.blockArea.value) || 50;
+            simState.blockHeightCm = parseFloat(inputs.blockHeight.value) || 10;
+            simState.blockDensityGCm3 = parseFloat(inputs.blockDensity.value) || 0.7;
+            simState.blockPositionBottomCm = parseFloat(inputs.blockPosition.value) || 0;
+            simState.liquidDensityGCm3 = parseFloat(inputs.liquidDensity.value) || 1.0;
+
+            // Handle auto-balance disabling/enabling block position input
+            if (inputs.autoBalanceCheckbox.checked) {
+                inputs.blockPosition.disabled = true;
+                inputs.blockPositionSlider.disabled = true;
+            } else {
+                inputs.blockPosition.disabled = false;
+                inputs.blockPositionSlider.disabled = false;
+            }
+
+            // Basic calculations based on inputs
+            simState.blockVolumeCm3 = simState.blockAreaCm2 * simState.blockHeightCm;
+            simState.blockMassG = simState.blockVolumeCm3 * simState.blockDensityGCm3;
+            simState.blockWeightN = (simState.blockMassG / 1000) * GRAVITY; 
+
+            // Iteratively determine liquid level, immersion, and buoyancy
+            resolveSystemState();
+
+            updateCurrentSceneVisuals();
+            updateStatusPanel();
+            if (simState.recordedState) {
+                updateComparisonDisplays();
+            }
+        }
+
+        function resolveSystemState() {
+            const convergenceThreshold = 0.001; // cm
+            const maxIterations = 50; // Increased iterations for potentially more complex convergence
+
+            if (inputs.autoBalanceCheckbox.checked) {
+                // --- AUTO-BALANCE LOGIC ---
+                simState.blockWeightN = (simState.blockMassG / 1000) * GRAVITY;
+                const maxBuoyantForcePossible = (simState.blockVolumeCm3 * simState.liquidDensityGCm3 / 1000) * GRAVITY;
+
+                let currentActualLiquidCm = simState.initialLiquidHeightCm;
+                let calculatedBlockPositionBottomCm;
+
+                if (simState.blockWeightN >= maxBuoyantForcePossible - convergenceThreshold) {
+                    // Block sinks or is neutrally buoyant fully submerged
+                    calculatedBlockPositionBottomCm = 0;
+                    simState.blockPositionBottomCm = 0;
+                    // Now calculate liquid rise with block at bottom
+                    let immersionAtBottom = 0;
+                    for (let i = 0; i < maxIterations; i++) {
+                        if (currentActualLiquidCm > 0) { // Block is at bottom (0)
+                            immersionAtBottom = Math.min(simState.blockHeightCm, currentActualLiquidCm);
+                        } else {
+                            immersionAtBottom = 0;
+                        }
+                        immersionAtBottom = Math.max(0, immersionAtBottom);
+                        const displacedVolume = immersionAtBottom * simState.blockAreaCm2;
+                        const newActualLiquidCm = simState.initialLiquidHeightCm + 
+                                              (simState.containerAreaCm2 > 0.0001 ? displacedVolume / simState.containerAreaCm2 : 0);
+                        if (Math.abs(newActualLiquidCm - currentActualLiquidCm) < convergenceThreshold) {
+                            currentActualLiquidCm = newActualLiquidCm;
+                            break;
+                        }
+                        currentActualLiquidCm = newActualLiquidCm;
+                        if (i === maxIterations -1) console.warn("Auto-balance (sinking) liquid level did not converge.");
+                    }
+                    simState.immersionDepthCm = immersionAtBottom;
+                } else {
+                    // Block floats
+                    const displacedVolumeForEquilibrium = (simState.blockMassG / 1000) / (simState.liquidDensityGCm3 / 1000); // m_block_kg / rho_liq_kg_m3 => V_m3 (oops, densities are g/cm3)
+                                                                                                                        // V_disp_cm3 = mass_g / rho_liq_g_cm3
+                    const displacedVolumeEqCm3 = simState.blockMassG / simState.liquidDensityGCm3;
+                    let immersionEqCm = displacedVolumeEqCm3 / simState.blockAreaCm2;
+                    immersionEqCm = Math.min(immersionEqCm, simState.blockHeightCm); // Cannot be more submerged than its height
+                    immersionEqCm = Math.max(0, immersionEqCm); // Cannot be negatively submerged
+
+                    simState.immersionDepthCm = immersionEqCm; // Target immersion depth
+
+                    // Iteratively find blockPositionBottom and actualLiquidHeight for this immersionEqCm
+                    let previousBlockPosCm = -1;
+                    currentActualLiquidCm = simState.initialLiquidHeightCm + (immersionEqCm * simState.blockAreaCm2) / (simState.containerAreaCm2 > 0.0001 ? simState.containerAreaCm2 : Infinity) ; // Initial guess
+
+                    for (let i = 0; i < maxIterations; i++) {
+                        calculatedBlockPositionBottomCm = currentActualLiquidCm - immersionEqCm;
+                        calculatedBlockPositionBottomCm = Math.max(0, calculatedBlockPositionBottomCm); // Cannot go through floor
+                        
+                        // Recalculate liquid rise based on this position and fixed immersionEqCm
+                        // This part is slightly different: immersion is fixed, position changes liquid level
+                        const effectiveImmersion = (currentActualLiquidCm > calculatedBlockPositionBottomCm) ? Math.min(immersionEqCm, currentActualLiquidCm - calculatedBlockPositionBottomCm) : 0;
+                        // This should actually be just immersionEqCm if the block is properly positioned.
+                        // The key is that blockPositionBottomCm + immersionEqCm should == currentActualLiquidCm (if not on floor)
+                        
+                        const displacedVolumeSteady = immersionEqCm * simState.blockAreaCm2;
+                        const newActualLiquidCm = simState.initialLiquidHeightCm + 
+                                              (simState.containerAreaCm2 > 0.0001 ? displacedVolumeSteady / simState.containerAreaCm2 : 0);
+
+                        if (Math.abs(newActualLiquidCm - currentActualLiquidCm) < convergenceThreshold &&
+                            Math.abs(calculatedBlockPositionBottomCm - (previousBlockPosCm === -1 ? calculatedBlockPositionBottomCm : previousBlockPosCm) ) < convergenceThreshold) {
+                            currentActualLiquidCm = newActualLiquidCm;
+                            break;
+                        }
+                        currentActualLiquidCm = newActualLiquidCm;
+                        previousBlockPosCm = calculatedBlockPositionBottomCm;
+                        if (i === maxIterations -1) console.warn("Auto-balance (floating) system did not converge.");
+                    }
+                    simState.blockPositionBottomCm = Math.max(0, currentActualLiquidCm - immersionEqCm);
+                }
+                
+                simState.actualLiquidHeightCm = Math.max(0, currentActualLiquidCm);
+                // Update the disabled input field to show the calculated auto-balance position
+                inputs.blockPosition.value = simState.blockPositionBottomCm.toFixed(2);
+                inputs.blockPositionSlider.value = simState.blockPositionBottomCm.toFixed(2);
+
+            } else {
+                // --- MANUAL BLOCK POSITION LOGIC (existing logic) ---
+                let currentActualLiquidCm = simState.initialLiquidHeightCm;
+                let previousImmersionCm = -1; 
+                // let previousActualLiquidCm = -1; // Not strictly needed for convergence check here if using previousImmersionCm
+
+                for (let i = 0; i < maxIterations; i++) {
+                    let immersionThisIteration = 0;
+                    if (currentActualLiquidCm > simState.blockPositionBottomCm) {
+                        immersionThisIteration = Math.min(simState.blockHeightCm, currentActualLiquidCm - simState.blockPositionBottomCm);
+                    }
+                    immersionThisIteration = Math.max(0, immersionThisIteration);
+                    simState.immersionDepthCm = immersionThisIteration;
+
+                    let displacedVolume = simState.immersionDepthCm * simState.blockAreaCm2;
+                    let newActualLiquidCm = simState.initialLiquidHeightCm;
+                    if (simState.containerAreaCm2 > 0.0001) {
+                        newActualLiquidCm += displacedVolume / simState.containerAreaCm2;
+                    }
+                    newActualLiquidCm = Math.max(0, newActualLiquidCm);
+
+                    if (i > 0 && 
+                        Math.abs(newActualLiquidCm - currentActualLiquidCm) < convergenceThreshold &&
+                        Math.abs(simState.immersionDepthCm - previousImmersionCm) < convergenceThreshold) {
+                        currentActualLiquidCm = newActualLiquidCm;
+                        break;
+                    }
+                    // previousActualLiquidCm = currentActualLiquidCm; // Only if using this for convergence
+                    currentActualLiquidCm = newActualLiquidCm;
+                    previousImmersionCm = simState.immersionDepthCm;
+                    
+                    if (i === maxIterations - 1) {
+                        console.warn("Manual system state resolution did not fully converge after", maxIterations, "iterations.");
+                    }
+                }
+                simState.actualLiquidHeightCm = currentActualLiquidCm;
+                // Final update for immersionDepth based on the converged actualLiquidHeightCm
+                if (simState.actualLiquidHeightCm > simState.blockPositionBottomCm) {
+                     simState.immersionDepthCm = Math.min(simState.blockHeightCm, simState.actualLiquidHeightCm - simState.blockPositionBottomCm);
+                } else {
+                     simState.immersionDepthCm = 0;
+                }
+                simState.immersionDepthCm = Math.max(0, simState.immersionDepthCm);
+            }
+
+            // Common final calculations for both modes
+            simState.isFullySubmerged = simState.immersionDepthCm >= (simState.blockHeightCm - convergenceThreshold);
+            let displacedVolumeFinal = simState.immersionDepthCm * simState.blockAreaCm2;
+            let massDisplacedLiquidG = displacedVolumeFinal * simState.liquidDensityGCm3;
+            simState.buoyantForceN = (massDisplacedLiquidG / 1000) * GRAVITY;
+        }
+        
+        function updateCurrentSceneVisuals() {
+            const canvasHeightPx = current.canvasContainer.clientHeight;
+            const canvasContainerWidth = current.canvasContainer.offsetWidth;
+            current.canvasContainer.innerHTML = ''; // Clear previous annotations
+
+            // --- Re-add persistent elements (liquid, object) ---
+            current.liquid = document.createElement('div');
+            current.liquid.id = 'current-liquid';
+            current.liquid.className = 'liquid';
+            current.canvasContainer.appendChild(current.liquid);
+
+            current.object = document.createElement('div');
+            current.object.id = 'current-object';
+            current.object.className = 'object-block';
+            current.canvasContainer.appendChild(current.object);
+            
+            // --- Update Liquid Visuals ---
+            let liquidHeightPx = simState.actualLiquidHeightCm * PIXELS_PER_CM;
+            liquidHeightPx = Math.min(liquidHeightPx, canvasHeightPx); 
+            liquidHeightPx = Math.max(0, liquidHeightPx); 
+            current.liquid.style.height = `${liquidHeightPx}px`;
+            
+            // --- Update Block Visuals ---
+            const blockHeightPx = simState.blockHeightCm * PIXELS_PER_CM;
+            current.object.style.height = `${blockHeightPx}px`;
+            current.object.style.width = `${canvasContainerWidth * 0.4}px`; 
+            current.object.style.left = '50%'; // Ensure it's centered before transform
+            current.object.style.transform = 'translateX(-50%)';
+            
+            let blockBottomPx = simState.blockPositionBottomCm * PIXELS_PER_CM;
+            blockBottomPx = Math.max(0, blockBottomPx); 
+            current.object.style.bottom = `${blockBottomPx}px`;
+
+            // --- Add/Update Annotations for Current Scene ---
+            const addAnnotation = (type, valueCm, yPositionPx, xOffsetPercent, textPrefix, parent, additionalClass = '') => {
+                // Line (optional, can be controlled by specific classes)
+                // For simplicity, specific line creation will be handled per annotation type
+
+                // Text
+                const textEl = document.createElement('div');
+                textEl.className = `annotation-text ${additionalClass}-text`;
+                textEl.textContent = `${textPrefix}: ${valueCm.toFixed(1)} cm`;
+                
+                if (type === 'liquid-level') {
+                    const lineEl = document.createElement('div');
+                    lineEl.className = `annotation-line liquid-level-line`;
+                    lineEl.style.bottom = `${yPositionPx}px`;
+                    parent.appendChild(lineEl);
+                    textEl.style.bottom = `${yPositionPx + 2}px`; // Position text slightly above line
+                    textEl.style.left = `${xOffsetPercent}%`;
+                } else if (type === 'block-bottom') {
+                    const lineEl = document.createElement('div');
+                    lineEl.className = `annotation-line block-bottom-line`;
+                    lineEl.style.bottom = `0px`;
+                    lineEl.style.height = `${yPositionPx}px`;
+                    lineEl.style.left = `${xOffsetPercent}%`;
+                    parent.appendChild(lineEl);
+
+                    textEl.style.bottom = `${yPositionPx / 2 - 10}px`; // Mid-point of the line
+                    textEl.style.left = `${xOffsetPercent + 2}%`;
+                } else if (type === 'immersion-depth') {
+                    const lineEl = document.createElement('div');
+                    lineEl.className = `annotation-line immersion-depth-line`;
+                    // yPositionPx here is the immersion depth in pixels
+                    // The line should start at the block's bottom (if immersed) or liquid surface, up to immersion depth
+                    const immersionTopPx = blockBottomPx + yPositionPx;
+                    lineEl.style.bottom = `${blockBottomPx}px`; 
+                    lineEl.style.height = `${Math.max(0, yPositionPx)}px`; // yPositionPx is immersionDepthPx
+                    lineEl.style.right = `${xOffsetPercent}%`;
+                    if (valueCm > 0) parent.appendChild(lineEl); // Only add if immersed
+
+                    textEl.style.bottom = `${blockBottomPx + yPositionPx / 2 - 10}px`;
+                    textEl.style.right = `${xOffsetPercent + 2}%`;
+                    if (valueCm > 0) parent.appendChild(textEl);
+                    else return; // Don't add text if not immersed
+                }
+                parent.appendChild(textEl);
+            };
+
+            // Liquid Level Annotation
+            addAnnotation('liquid-level', simState.actualLiquidHeightCm, liquidHeightPx, 5, '液面', current.canvasContainer, 'liquid-level');
+            
+            // Block Bottom Position Annotation
+            if (simState.blockPositionBottomCm >= 0) { // Only show if block is in/above container
+                 addAnnotation('block-bottom', simState.blockPositionBottomCm, blockBottomPx, 15, '物块底', current.canvasContainer, 'block-bottom');
+            }
+
+            // Immersion Depth Annotation
+            const immersionDepthPx = simState.immersionDepthCm * PIXELS_PER_CM;
+            if (simState.immersionDepthCm > 0.01) { // Only show if meaningfully immersed
+                addAnnotation('immersion-depth', simState.immersionDepthCm, immersionDepthPx, 15, '浸入', current.canvasContainer, 'immersion-depth');
+            }
+
+
+            // --- Update Text Displays below Current Scene ---
+            current.immersionDepthDisplay.textContent = `浸入深度: ${simState.immersionDepthCm.toFixed(2)} cm`;
+            current.liquidLevelDisplay.textContent = `液面高度: ${simState.actualLiquidHeightCm.toFixed(2)} cm`;
+        }
+
+        function updateRecordedSceneVisuals() {
+            if (!simState.recordedState) return; 
+
+            const canvasHeightPx = recorded.canvasContainer.clientHeight;
+            const canvasContainerWidth = recorded.canvasContainer.offsetWidth;
+            recorded.canvasContainer.innerHTML = ''; // Clear previous annotations
+
+            // --- Re-add persistent elements (liquid, object) ---
+            recorded.liquid = document.createElement('div');
+            recorded.liquid.id = 'recorded-liquid';
+            recorded.liquid.className = 'liquid';
+            recorded.canvasContainer.appendChild(recorded.liquid);
+
+            recorded.object = document.createElement('div');
+            recorded.object.id = 'recorded-object';
+            recorded.object.className = 'object-block';
+            recorded.canvasContainer.appendChild(recorded.object);
+
+            const recordedData = simState.recordedState;
+
+            // --- Update Liquid Visuals ---
+            let liquidHeightPx = recordedData.actualLiquidHeightCm * PIXELS_PER_CM;
+            liquidHeightPx = Math.min(liquidHeightPx, canvasHeightPx);
+            liquidHeightPx = Math.max(0, liquidHeightPx);
+            recorded.liquid.style.height = `${liquidHeightPx}px`;
+
+            // --- Update Block Visuals ---
+            const blockHeightPx = recordedData.blockHeightCm * PIXELS_PER_CM;
+            recorded.object.style.height = `${blockHeightPx}px`;
+            recorded.object.style.width = `${canvasContainerWidth * 0.4}px`; 
+            recorded.object.style.left = '50%'; 
+            recorded.object.style.transform = 'translateX(-50%)';
+
+            let blockBottomPx = recordedData.blockPositionBottomCm * PIXELS_PER_CM;
+            blockBottomPx = Math.max(0, blockBottomPx);
+            recorded.object.style.bottom = `${blockBottomPx}px`;
+
+            // --- Add/Update Annotations for Recorded Scene (similar to current scene) ---
+             const addAnnotation = (type, valueCm, yPositionPx, xOffsetPercent, textPrefix, parent, additionalClass = '') => {
+                // Text
+                const textEl = document.createElement('div');
+                textEl.className = `annotation-text ${additionalClass}-text`;
+                textEl.textContent = `${textPrefix}: ${valueCm.toFixed(1)} cm`;
+                
+                if (type === 'liquid-level') {
+                    const lineEl = document.createElement('div');
+                    lineEl.className = `annotation-line liquid-level-line`;
+                    lineEl.style.bottom = `${yPositionPx}px`;
+                    parent.appendChild(lineEl);
+                    textEl.style.bottom = `${yPositionPx + 2}px`; 
+                    textEl.style.left = `${xOffsetPercent}%`;
+                } else if (type === 'block-bottom') {
+                    const lineEl = document.createElement('div');
+                    lineEl.className = `annotation-line block-bottom-line`;
+                    lineEl.style.bottom = `0px`;
+                    lineEl.style.height = `${yPositionPx}px`;
+                    lineEl.style.left = `${xOffsetPercent}%`;
+                    parent.appendChild(lineEl);
+
+                    textEl.style.bottom = `${yPositionPx / 2 - 10}px`; 
+                    textEl.style.left = `${xOffsetPercent + 2}%`;
+                } else if (type === 'immersion-depth') {
+                    const lineEl = document.createElement('div');
+                    lineEl.className = `annotation-line immersion-depth-line`;
+                    const immersionTopPx = blockBottomPx + yPositionPx;
+                    lineEl.style.bottom = `${blockBottomPx}px`; 
+                    lineEl.style.height = `${Math.max(0, yPositionPx)}px`;
+                    lineEl.style.right = `${xOffsetPercent}%`;
+                     if (valueCm > 0) parent.appendChild(lineEl);
+
+                    textEl.style.bottom = `${blockBottomPx + yPositionPx / 2 - 10}px`;
+                    textEl.style.right = `${xOffsetPercent + 2}%`;
+                    if (valueCm > 0) parent.appendChild(textEl); else return;
+                }
+                 parent.appendChild(textEl);
+            };
+            
+            addAnnotation('liquid-level', recordedData.actualLiquidHeightCm, liquidHeightPx, 5, '液面', recorded.canvasContainer, 'liquid-level');
+            if (recordedData.blockPositionBottomCm >=0) {
+                addAnnotation('block-bottom', recordedData.blockPositionBottomCm, blockBottomPx, 15, '物块底', recorded.canvasContainer, 'block-bottom');
+            }
+            const immersionDepthPx = recordedData.immersionDepthCm * PIXELS_PER_CM;
+            if (recordedData.immersionDepthCm > 0.01) {
+                addAnnotation('immersion-depth', recordedData.immersionDepthCm, immersionDepthPx, 15, '浸入', recorded.canvasContainer, 'immersion-depth');
+            }
+
+            // --- Update Text Displays below Recorded Scene ---
+            recorded.immersionDepthDisplay.textContent = `浸入深度: ${recordedData.immersionDepthCm.toFixed(2)} cm`;
+            recorded.liquidLevelDisplay.textContent = `液面高度: ${recordedData.actualLiquidHeightCm.toFixed(2)} cm`;
+        }
+
+        function updateStatusPanel() {
+            statusDisplays.blockPosition.textContent = `物块位置 (底部): ${simState.blockPositionBottomCm.toFixed(2)} cm`;
+            statusDisplays.blockImmersion.textContent = `物块浸入液体深度: ${simState.immersionDepthCm.toFixed(2)} cm`;
+            statusDisplays.liquidHeight.textContent = `液面高度: ${simState.actualLiquidHeightCm.toFixed(2)} cm`;
+        }
+
+        // Event Listeners for all inputs
+        Object.values(inputs).forEach(inputElement => {
+            if (inputElement.type === 'number') {
+                inputElement.addEventListener('input', getInputs);
+            } else if (inputElement.type === 'checkbox') {
+                inputElement.addEventListener('change', getInputs); 
+            }
+            // Sliders will also trigger getInputs, and need to sync with number fields
+            // RecordButton has its own listener
+        });
+
+        // Function to set up synchronization between a number input and a slider
+        function setupInputSync(numberInput, sliderInput) {
+            numberInput.addEventListener('input', () => {
+                sliderInput.value = numberInput.value;
+                // getInputs(); // Already called by the number input's own listener
+            });
+            sliderInput.addEventListener('input', () => {
+                numberInput.value = sliderInput.value;
+                getInputs(); // Manually trigger update when slider changes
+            });
+        }
+
+        // Setup sync for all pairs
+        setupInputSync(inputs.containerArea, inputs.containerAreaSlider);
+        setupInputSync(inputs.initialLiquidHeight, inputs.initialLiquidHeightSlider);
+        setupInputSync(inputs.blockArea, inputs.blockAreaSlider);
+        setupInputSync(inputs.blockHeight, inputs.blockHeightSlider);
+        setupInputSync(inputs.blockDensity, inputs.blockDensitySlider);
+        setupInputSync(inputs.blockPosition, inputs.blockPositionSlider);
+        setupInputSync(inputs.liquidDensity, inputs.liquidDensitySlider);
+
+        inputs.recordButton.addEventListener('click', () => {
+            // Deep copy the relevant parts of the current simState to recordedState
+            simState.recordedState = {
+                actualLiquidHeightCm: simState.actualLiquidHeightCm,
+                blockPositionBottomCm: simState.blockPositionBottomCm,
+                immersionDepthCm: simState.immersionDepthCm,
+                blockHeightCm: simState.blockHeightCm, // Store block height at time of recording
+                // We might also want to store blockArea, density etc. if they could affect visuals or calcs later
+                // For now, these are the primary ones for visual and data comparison
+            };
+            updateRecordedSceneVisuals();
+            updateComparisonDisplays(); // We will implement this function next
+        });
+
+        // Placeholder for the function that will update all comparison elements
+        function updateComparisonDisplays() {
+            console.log("Updating comparison displays (lines and depth difference)...");
+            
+            // Clear previous lines
+            objectPositionComparisonContainer.innerHTML = '';
+            liquidLevelComparisonContainer.innerHTML = '';
+
+            if (!simState.recordedState) {
+                // Clear depth difference if no recorded state
+                statusDisplays.immersionDepthDifference.textContent = '浸入深度差值: N/A';
+                return;
+            }
+
+            // Update immersion depth difference display
+            const depthDiff = simState.immersionDepthCm - simState.recordedState.immersionDepthCm;
+            statusDisplays.immersionDepthDifference.textContent = `浸入深度差值: ${depthDiff.toFixed(2)} cm`;
+            // statusDisplays.immersionDepthDifference.style.backgroundColor = "yellow"; // Already set in CSS
+
+            // --- Draw Object Position Comparison Lines (scaled to fit in 20px height strip) ---
+            const comparisonStripHeightPx = 18; // Usable height within the 20px container for a 2px line
+
+            // Recorded Object Line
+            const recordedBlockBottomScaled = 
+                (simState.recordedState.blockPositionBottomCm / MAX_SIM_HEIGHT_CM) * comparisonStripHeightPx;
+            const recObjLine = document.createElement('div');
+            recObjLine.style.position = 'absolute';
+            recObjLine.style.height = '2px';
+            recObjLine.style.backgroundColor = 'darkgrey';
+            recObjLine.style.width = '40%';
+            recObjLine.style.left = '5%';
+            recObjLine.style.bottom = Math.max(0, Math.min(comparisonStripHeightPx, recordedBlockBottomScaled)) + 'px';
+            recObjLine.title = `Recorded Block Bottom: ${simState.recordedState.blockPositionBottomCm.toFixed(1)}cm`;
+            objectPositionComparisonContainer.appendChild(recObjLine);
+
+            // Current Object Line
+            const currentBlockBottomScaled = 
+                (simState.blockPositionBottomCm / MAX_SIM_HEIGHT_CM) * comparisonStripHeightPx;
+            const currObjLine = document.createElement('div');
+            currObjLine.style.position = 'absolute';
+            currObjLine.style.height = '2px';
+            currObjLine.style.backgroundColor = '#007bff'; // Blue
+            currObjLine.style.width = '40%';
+            currObjLine.style.left = '55%';
+            currObjLine.style.bottom = Math.max(0, Math.min(comparisonStripHeightPx, currentBlockBottomScaled)) + 'px';
+            currObjLine.title = `Current Block Bottom: ${simState.blockPositionBottomCm.toFixed(1)}cm`;
+            objectPositionComparisonContainer.appendChild(currObjLine);
+
+            // --- Draw Liquid Level Comparison Lines (scaled to fit in 20px height strip) ---
+            // Recorded Liquid Line
+            const recordedLiquidLevelScaled = 
+                (simState.recordedState.actualLiquidHeightCm / MAX_SIM_HEIGHT_CM) * comparisonStripHeightPx;
+            const recLiqLine = document.createElement('div');
+            recLiqLine.style.position = 'absolute';
+            recLiqLine.style.height = '2px';
+            recLiqLine.style.backgroundColor = 'lightgray';
+            recLiqLine.style.width = '40%';
+            recLiqLine.style.left = '5%';
+            recLiqLine.style.bottom = Math.max(0, Math.min(comparisonStripHeightPx, recordedLiquidLevelScaled)) + 'px';
+            recLiqLine.title = `Recorded Liquid Level: ${simState.recordedState.actualLiquidHeightCm.toFixed(1)}cm`;
+            liquidLevelComparisonContainer.appendChild(recLiqLine);
+
+            // Current Liquid Line
+            const currentLiquidLevelScaled = 
+                (simState.actualLiquidHeightCm / MAX_SIM_HEIGHT_CM) * comparisonStripHeightPx;
+            const currLiqLine = document.createElement('div');
+            currLiqLine.style.position = 'absolute';
+            currLiqLine.style.height = '2px';
+            currLiqLine.style.backgroundColor = '#17a2b8'; // Cyan/Info Blue
+            currLiqLine.style.width = '40%';
+            currLiqLine.style.left = '55%';
+            currLiqLine.style.bottom = Math.max(0, Math.min(comparisonStripHeightPx, currentLiquidLevelScaled)) + 'px';
+            currLiqLine.title = `Current Liquid Level: ${simState.actualLiquidHeightCm.toFixed(1)}cm`;
+            liquidLevelComparisonContainer.appendChild(currLiqLine);
+        }
+
+        // Initial setup on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Ensure canvas dimensions are stable before reading them for block width
+            // A small delay or ensuring CSS is fully applied might be good,
+            // but for now, direct call.
+            getInputs(); 
+
+            // Move status panel to be the last child of visualization-area
+            const visualizationAreaDiv = document.querySelector('.visualization-area');
+            const statusPanelToMove = document.getElementById('moved-status-panel');
+            if (visualizationAreaDiv && statusPanelToMove) {
+                visualizationAreaDiv.appendChild(statusPanelToMove);
+            }
+        });
+
+    </script>
+</body>
+</html> 
