@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理浮力可视化器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="column physics-simulation-area">
+            <h2>物理情境模拟</h2>
+            <canvas id="physicsCanvas"></canvas>
+        </div>
+        <div class="column chart-area">
+            <h2>数据图表</h2>
+            <div class="chart-toggle">
+                <button id="toggleChartBtn">显示细绳拉力图表</button>
+            </div>
+            <canvas id="dataChart"></canvas>
+            <div class="annotations-controls">
+                <button id="undoAnnotationBtn">撤销标注</button>
+            </div>
+        </div>
+        <div class="column controls-area">
+            <h2>控制参数</h2>
+            <div class="control-group">
+                <label for="liquidLevelSlider">液面高度 (h<sub>L</sub>) [cm]: <span id="liquidLevelValue">10</span></label>
+                <input type="range" id="liquidLevelSlider" min="0" max="30" value="10" step="0.1">
+                <input type="number" id="liquidLevelInput" min="0" max="30" value="10" step="0.1">
+            </div>
+            <div class="control-group">
+                <label for="ropeLengthSlider">细绳长度 (L<sub>R</sub>) [cm]: <span id="ropeLengthValue">6</span></label>
+                <input type="range" id="ropeLengthSlider" min="0" max="20" value="6" step="0.1">
+                <input type="number" id="ropeLengthInput" min="0" max="20" value="6" step="0.1">
+            </div>
+            <div class="control-group">
+                <label for="blockHeightSlider">物块边长 (S) [cm]: <span id="blockHeightValue">10</span></label>
+                <input type="range" id="blockHeightSlider" min="1" max="20" value="10" step="0.1">
+                <input type="number" id="blockHeightInput" min="1" max="20" value="10" step="0.1">
+            </div>
+            <div class="control-group">
+                <label for="blockDensitySlider">物块密度 (&rho;<sub>A</sub>) [kg/m<sup>3</sup>]: <span id="blockDensityValue">700</span></label>
+                <input type="range" id="blockDensitySlider" min="100" max="2000" value="700" step="10">
+                <input type="number" id="blockDensityInput" min="100" max="2000" value="700" step="10">
+            </div>
+            <div class="control-group">
+                <label for="liquidDensitySlider">液体密度 (&rho;<sub>L</sub>) [kg/m<sup>3</sup>]: <span id="liquidDensityValue">600</span></label>
+                <input type="range" id="liquidDensitySlider" min="100" max="2000" value="600" step="10">
+                <input type="number" id="liquidDensityInput" min="100" max="2000" value="600" step="10">
+            </div>
+            <div class="control-group">
+                <input type="checkbox" id="cutRopeCheckbox">
+                <label for="cutRopeCheckbox">剪断细绳</label>
+            </div>
+             <div class="control-group">
+                <p>重力加速度 (g): 10 N/kg</p>
+            </div>
+        </div>
+    </div>
+    <script src="lib/chart.js"></script>
+    <script src="lib/chartjs-plugin-annotation.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html> 

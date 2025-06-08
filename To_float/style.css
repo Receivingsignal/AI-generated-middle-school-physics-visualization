@@ -1,0 +1,147 @@
+/* 物理浮力可视化器样式表 / Physics Buoyancy Visualizer Stylesheet */
+
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    height: 100%;
+    overflow: hidden; /* 防止滚动条 / Prevent scrolling for a fixed 16:9 feel */
+    background-color: #f0f0f0;
+}
+
+/* 三栏主布局 / Three-column main layout */
+.app-container {
+    display: flex;
+    height: 100vh; /* 全屏高度 / Full viewport height */
+    width: 100vw;  /* 全屏宽度 / Full viewport width */
+}
+
+.column {
+    padding: 20px;
+    box-sizing: border-box;
+    overflow-y: auto; /* 超出可滚动 / Allow scrolling within columns if content overflows */
+}
+
+/* 左侧物理情景区域 / Left: Physics simulation area */
+.physics-simulation-area {
+    flex: 0 0 40%; /* 约40%宽度 / Approx 40% width */
+    background-color: #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* 中间图表区域 / Middle: Chart area */
+.chart-area {
+    flex: 0 0 35%; /* 约35%宽度 / Approx 35% width */
+    background-color: #d0d0d0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* 右侧控制台区域 / Right: Controls area */
+.controls-area {
+    flex: 0 0 25%; /* 约25%宽度 / Approx 25% width */
+    background-color: #c0c0c0;
+    font-size: 0.9em; /* 控制台字体略小 / Slightly smaller base font for controls column */
+}
+
+canvas {
+    border: 1px solid #333;
+    background-color: #fff;
+}
+
+#physicsCanvas {
+    width: 90%; /* 区域内自适应 / Responsive within its column */
+    /* 高度由JS设置 / Height will be set by JS */
+}
+
+#dataChart {
+    width: 90%;
+    max-height: 400px;
+}
+
+/* 控件分组 / Control group */
+.control-group {
+    margin-bottom: 15px;
+}
+
+.control-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 1.05em; /* 相对控制台字体 / Relative to controls-area font-size */
+}
+
+.control-group input[type="range"],
+.control-group input[type="number"] {
+    margin-bottom: 5px;
+    padding: 7px;
+    font-size: 0.95em;
+    width: calc(100% - 18px);
+}
+
+.control-group input[type="checkbox"] {
+    transform: scale(1.5); /* 放大复选框 / Enlarge checkbox */
+    margin-right: 8px;
+    vertical-align: middle;
+    padding: 8px;
+}
+
+.control-group label[for="cutRopeCheckbox"] {
+    display: inline-block;
+    vertical-align: middle;
+    font-size: 1.05em;
+}
+
+.control-group input[type="number"] {
+    width: calc(60% - 20px);
+}
+
+.control-group span {
+    font-weight: bold;
+}
+
+h2 {
+    text-align: center;
+    color: #333;
+    font-size: 1.5em;
+}
+
+button {
+    padding: 10px 15px;
+    font-size: 1.1em;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+.chart-toggle, .annotations-controls {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+/* 响应式与大字体 / Responsive and large text for visibility */
+body {
+    font-size: 16px;
+}
+
+@media (min-width: 1200px) {
+    /* 保持主字体，控制台有独立设置 / Keep general body font, controls-area has its own base */
+    h2 {
+        font-size: 1.8em;
+    }
+    .control-group label {
+        font-size: 1.2em;
+    }
+    button {
+        font-size: 1.2em;
+    }
+} 
